@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>렌트카 ERP V12 (Smart Fleet)</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('dispatch', this)">📊 배차 현황판 (Status)</button>
+    <button class="tab-btn" onclick="switchTab('fleet', this)">🚙 보유 차량 관리 (Fleet)</button>
+    <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ 설정 (Settings)</button>
+</nav>
+
+<div id="dispatch" class="content-area active">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <span style="font-size:14px; font-weight:bold;">📋 렌트카 통합 배차 대장</span>
+        <button class="btn btn-blue btn-lg" onclick="openDispatchModal('new')">+ 신규 배차 등록</button>
+    </div>
+    <div class="table-wrap">
+        <table class="excel-table">
+            <thead>
+                <tr id="tableHeadGroup"></tr>
+                <tr id="tableHeadItem" style="background:#f8f9fa; color:#333; font-weight:bold;"></tr>
+            </thead>
+            <tbody id="dispatchBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="fleet" class="content-area">
+    <div class="fleet-stats">
+        <div class="stat-card active" id="filter_all" onclick="filterFleet('all')">
+            <span class="stat-num" id="cntTotal">0</span><span class="stat-label">전체</span>
+        </div>
+        <div class="stat-card" id="filter_ready" onclick="filterFleet('ready')">
+            <span class="stat-num" id="cntReady" style="color:var(--success)">0</span><span class="stat-label">배차가능</span>
+        </div>
+        <div class="stat-card" id="filter_out" onclick="filterFleet('out')">
+            <span class="stat-num" id="cntOut" style="color:var(--danger)">0</span><span class="stat-label">배차중</span>
+        </div>
+        <div class="stat-card" id="filter_repair" onclick="filterFleet('repair')">
+            <span class="stat-num" id="cntRepair" style="color:var(--warn)">0</span><span class="stat-label">수리/점검</span>
+        </div>
+    </div>
+
+    <div class="control-bar">
+        <button class="btn btn-blue" onclick="openVehicleModal()">+ 차량 추가</button>
+        <div class="view-toggle">
+            <button class="view-btn active" onclick="toggleView('card', this)">▦ 카드형</button>
+            <button class="view-btn" onclick="toggleView('list', this)">≣ 리스트형</button>
+        </div>
+    </div>
+
+    <div id="fleetCardView" class="fleet-grid"></div>
+    <div id="fleetListView" class="table-wrap hidden">
+        <table class="excel-table">
+            <thead>
+                <tr style="background:#333; color:white;">
+                    <th>상태</th><th>차종</th><th>차량번호</th><th>연식/색상</th><th>현재위치</th><th>관리</th>
+                </tr>
+            </thead>
+            <tbody id="fleetListBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="settings" class="content-area">
+    <h3>⚙️ 표시 항목 설정 (원하는 항목만 체크하세요)</h3>
+    <button class="btn btn-gray" onclick="checkAll(true)">전체 선택</button>
+    <button class="btn btn-gray" onclick="checkAll(false)">전체 해제</button>
+    <div class="settings-grid" id="settingsContainer"></div>
+    <br><button class="btn btn-green btn-lg" onclick="applySettings()">설정 적용</button>
+</div>
+
+<div id="dispatchModal" class="modal">
+    <div class="modal-content">
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+            <h3 id="dModalTitle" style="margin:0;">📝 배차 정보 입력</h3>
+            <span onclick="closeModal('dispatchModal')" style="cursor:pointer; font-size:24px;">&times;</span>
+        </div>
+        <input type="hidden" id="editIndex">
+
+        <fieldset class="form-section">
+            <legend style="color:var(--primary)">렌터카 / 시간 / 위치</legend>
+            <div class="grid-5">
+                <div class="input-group">
+                    <label>렌터카 선택</label>
+                    <select id="m_carSelect" onchange="selectCarFromFleet()"></select>
+                </div>
+                <div class="input-group"><label>차종</label><input type="text" id="m_model" readonly style="background:#f0f0f0"></div>
+                <div class="input-group"><label>차량번호</label><input type="text" id="m_plate" readonly style="background:#f0f0f0"></div>
+                <div class="input-group"><label>대여유형</label><select id="m_type"><option>사고대차</option><option>일반대여</option></select></div>
+                <div class="input-group"><label>배차지(위치)</label><input type="text" id="m_place"></div>
+
+                <div class="input-group"><label>배차시간</label><input type="datetime-local" id="m_start"></div>
+                <div class="input-group edit-only"><label style="color:red">반납시간</label><input type="datetime-local" id="m_end" onchange="calcDuration()"></div>
+                <div class="input-group edit-only"><label>배차일수</label><input type="text" id="m_duration" readonly style="background:#eee"></div>
+            </div>
+        </fieldset>
+
+        <fieldset class="form-section">
+            <legend>고객 / 입고지</legend>
+            <div class="grid-5">
+                <div class="input-group"><label>고객차종</label><input type="text" id="m_custCar"></div>
+                <div class="input-group"><label>배기량</label><input type="text" id="m_cc"></div>
+                <div class="input-group"><label>고객차량번호</label><input type="text" id="m_custPlate"></div>
+                <div class="input-group"><label>고객번호</label><input type="text" id="m_custPhone"></div>
+                <div class="input-group"><label>고객명(담당자)</label><input type="text" id="m_cust"></div>
+                
+                <div class="input-group"><label>입고지</label><input type="text" id="m_garage"></div>
+                <div class="input-group"><label>담당자 번호</label><input type="text" id="m_garageContact"></div>
+            </div>
+        </fieldset>
+
+        <fieldset class="form-section">
+            <legend style="color:var(--success)">보험사 정보</legend>
+            <div class="grid-5">
+                <div class="input-group"><label>보험사</label><input type="text" id="m_insName"></div>
+                <div class="input-group"><label>접수번호</label><input type="text" id="m_insNum"></div>
+                <div class="input-group"><label>담당자</label><input type="text" id="m_insAgent"></div>
+                <div class="input-group"><label>연락처</label><input type="text" id="m_insContact"></div>
+                <div class="input-group edit-only"><label>팩스번호</label><input type="text" id="m_insFax"></div>
+                
+                <div class="input-group edit-only"><label>과실</label><input type="text" id="m_fault"></div>
+                <div class="input-group edit-only"><label>입금액</label><input type="text" id="m_payAmt"></div>
+                <div class="input-group edit-only"><label>청구날짜</label><input type="date" id="m_claimDate"></div>
+                <div class="input-group edit-only"><label>입금날짜</label><input type="date" id="m_payDate"></div>
+            </div>
+        </fieldset>
+
+        <fieldset class="form-section">
+            <legend style="color:var(--danger)">소개비 / 정산</legend>
+            <div class="grid-5">
+                <div class="input-group"><label>소개자(메모)</label><input type="text" id="m_introName"></div> 
+                <div class="input-group edit-only"><label>은행</label><input type="text" id="m_bank"></div>
+                <div class="input-group edit-only"><label>계좌번호</label><input type="text" id="m_account"></div>
+                <div class="input-group edit-only"><label>금액</label><input type="text" id="m_commAmt"></div>
+                <div class="input-group edit-only"><label>날짜</label><input type="date" id="m_commDate"></div>
+            </div>
+        </fieldset>
+
+        <button class="btn btn-blue btn-lg" style="width:100%; margin-top:10px;" onclick="saveDispatch()">저장하기</button>
+    </div>
+</div>
+
+<div id="vehicleModal" class="modal">
+    <div class="modal-content sm-modal">
+        <h3>🚙 차량 정보 관리</h3>
+        <input type="hidden" id="v_editId">
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <div class="input-group"><label>모델명</label><input type="text" id="v_model"></div>
+            <div class="input-group"><label>차량번호</label><input type="text" id="v_plate"></div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <div class="input-group"><label>등록년월</label><input type="month" id="v_regDate"></div>
+                <div class="input-group"><label>색상</label><input type="text" id="v_color"></div>
+            </div>
+            <div class="input-group"><label>차고지 (대기장소)</label><input type="text" id="v_location"></div>
+            <div class="input-group"><label>현재 상태</label>
+                <select id="v_status">
+                    <option value="ready">배차가능</option>
+                    <option value="repair">수리/점검</option>
+                </select>
+            </div>
+            <button class="btn btn-blue" onclick="saveVehicle()">저장</button>
+            <button class="btn btn-gray" onclick="closeModal('vehicleModal')">취소</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/script.js"></script>
+
+</body>
+</html>
